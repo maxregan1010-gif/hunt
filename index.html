@@ -2,10 +2,10 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>شبیه‌ساز شکارچی (آفلاین)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>شکارگاه701</title>
   <style>
-    * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; touch-action: none; }
     body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Tahoma, sans-serif; }
     #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
     
@@ -17,7 +17,7 @@
     }
     .hud-card { background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); }
     #health-bar-fill { height: 100%; background: #e74c3c; width: 100%; transition: width 0.2s; }
-    #health-bar { width: 120px; height: 12px; background: #333; border-radius: 6px; overflow: hidden; display: inline-block; vertical-align: middle; }
+    #health-bar { width: 100px; height: 12px; background: #333; border-radius: 6px; overflow: hidden; display: inline-block; vertical-align: middle; }
 
     /* دوربین تک‌تیرانداز */
     #sniper-scope {
@@ -25,27 +25,32 @@
       background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.95) 35%);
       display: none; pointer-events: none; z-index: 20;
     }
-    #sniper-crosshair {
-      position: absolute; top: 50%; left: 50%; width: 2px; height: 100%; background: rgba(255,0,0,0.5);
-      transform: translate(-50%, -50%);
+    #sniper-crosshair { position: absolute; top: 50%; left: 50%; width: 2px; height: 100%; background: rgba(255,0,0,0.6); transform: translate(-50%, -50%); }
+    #sniper-crosshair-h { position: absolute; top: 50%; left: 50%; width: 100%; height: 2px; background: rgba(255,0,0,0.6); transform: translate(-50%, -50%); }
+
+    /* جوی‌استیک لمسی برای حرکت */
+    #joystick-zone {
+      position: absolute; bottom: 30px; right: 30px; width: 120px; height: 120px;
+      background: rgba(255, 255, 255, 0.15); border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%; z-index: 15; touch-action: none;
     }
-    #sniper-crosshair-h {
-      position: absolute; top: 50%; left: 50%; width: 100%; height: 2px; background: rgba(255,0,0,0.5);
-      transform: translate(-50%, -50%);
+    #joystick-knob {
+      position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
+      background: rgba(255, 255, 255, 0.6); border-radius: 50%; pointer-events: none;
     }
 
-    /* کنترل‌های لمسی موبایل */
+    /* کلیدهای اکشن سمت چپ */
     .touch-btn {
-      position: absolute; background: rgba(255,255,255,0.2); border: 2px solid #fff;
+      position: absolute; background: rgba(255,255,255,0.25); border: 2px solid #fff;
       border-radius: 50%; color: #fff; display: flex; justify-content: center; align-items: center;
-      font-weight: bold; pointer-events: auto; z-index: 15; cursor: pointer;
+      font-weight: bold; pointer-events: auto; z-index: 15; cursor: pointer; font-size: 14px;
     }
-    #btn-shoot { bottom: 30px; left: 30px; width: 70px; height: 70px; background: rgba(231,76,60,0.6); }
-    #btn-scope { bottom: 110px; left: 40px; width: 55px; height: 55px; }
-    #btn-weapon { bottom: 40px; left: 110px; width: 55px; height: 55px; }
-    #btn-action { bottom: 180px; left: 30px; width: 65px; height: 65px; background: rgba(46,204,113,0.7); display: none; }
+    #btn-shoot { bottom: 30px; left: 30px; width: 75px; height: 75px; background: rgba(231,76,60,0.7); }
+    #btn-scope { bottom: 120px; left: 35px; width: 55px; height: 55px; }
+    #btn-weapon { bottom: 45px; left: 120px; width: 55px; height: 55px; }
+    #btn-action { bottom: 190px; left: 35px; width: 65px; height: 65px; background: rgba(46,204,113,0.8); display: none; }
 
-    /* پنجره فروشگاه بازار */
+    /* بازار */
     #shop-modal {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: rgba(20,20,20,0.95); color: #fff; padding: 20px; border-radius: 12px;
@@ -70,13 +75,18 @@
     <div id="sniper-crosshair-h"></div>
   </div>
 
+  <!-- جوی‌استیک لمسی -->
+  <div id="joystick-zone">
+    <div id="joystick-knob"></div>
+  </div>
+
   <!-- کلیدهای کنترل -->
   <div id="btn-shoot" class="touch-btn">شلیک</div>
   <div id="btn-scope" class="touch-btn">زوم</div>
   <div id="btn-weapon" class="touch-btn">سلاح</div>
   <div id="btn-action" class="touch-btn">عمل</div>
 
-  <!-- پنجره فروشگاه -->
+  <!-- بازار -->
   <div id="shop-modal">
     <h3>فروشگاه بازار</h3>
     <br>
@@ -92,10 +102,16 @@
   <script>
     let scene, camera, renderer;
     let playerHealth = 100, coins = 100, meatCount = 0, maxBagCapacity = 3;
-    let currentWeapon = 'pistol'; // pistol یا sniper
+    let currentWeapon = 'pistol'; 
     let isScoped = false;
+    let gunGroup;
 
-    // اطلاعات حیوانات
+    // متغیرهای چرخش و حرکت لمسی
+    let moveForward = 0, moveSide = 0;
+    let yaw = 0, pitch = 0; // زوایای چرخش دوربین
+    let touchLookId = null;
+    let lastTouchX = 0, lastTouchY = 0;
+
     const animalTypes = {
       deer: { name: 'آهو', hp: 30, price: 20, aggressive: false, speed: 0.05 },
       wolf: { name: 'گرگ', hp: 50, price: 40, aggressive: true, speed: 0.08 },
@@ -115,14 +131,13 @@
       scene.fog = new THREE.FogExp2(0x87ceeb, 0.005);
 
       camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 2, 0);
+      camera.position.set(0, 1.8, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       container.appendChild(renderer.domElement);
 
-      // نورپردازی
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const sun = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -131,14 +146,39 @@
 
       buildWorld();
       spawnAnimals();
+      createWeapon();
+      setupTouchControls();
       setupEvents();
 
       animate();
     }
 
-    // ساخت محیط بازی (دشت، کوه، رودخانه، کمپ و بازار)
+    // ساخت مدل تفنگ سه بعدی متصل به دوربین
+    function createWeapon() {
+      gunGroup = new THREE.Group();
+
+      // لوله تفنگ
+      const barrelGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 16);
+      barrelGeo.rotateX(Math.PI / 2);
+      const gunMat = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
+      const barrel = new THREE.Mesh(barrelGeo, gunMat);
+
+      // دسته تفنگ
+      const handleGeo = new THREE.BoxGeometry(0.06, 0.2, 0.08);
+      const handleMat = new THREE.MeshLambertMaterial({ color: 0x8e44ad });
+      const handle = new THREE.Mesh(handleGeo, handleMat);
+      handle.position.set(0, -0.1, 0.1);
+
+      gunGroup.add(barrel);
+      gunGroup.add(handle);
+
+      // موقعیت دادن به تفنگ جلوی دوربین
+      gunGroup.position.set(0.25, -0.2, -0.5);
+      camera.add(gunGroup);
+      scene.add(camera);
+    }
+
     function buildWorld() {
-      // زمین اصلی
       const terrainGeo = new THREE.PlaneGeometry(500, 500, 64, 64);
       terrainGeo.rotateX(-Math.PI / 2);
       
@@ -146,9 +186,7 @@
       for (let i = 0; i < pos.count; i++) {
         let x = pos.getX(i);
         let z = pos.getZ(i);
-        // کوهستان در شمال
         if (z < -100) pos.setY(i, Math.sin(x*0.05) * 15 + Math.cos(z*0.05) * 20);
-        // گودی رودخانه
         if (Math.abs(x) < 15) pos.setY(i, -2);
       }
       terrainGeo.computeVertexNormals();
@@ -157,7 +195,6 @@
       const terrain = new THREE.Mesh(terrainGeo, terrainMat);
       scene.add(terrain);
 
-      // آب رودخانه
       const waterGeo = new THREE.PlaneGeometry(30, 500);
       waterGeo.rotateX(-Math.PI / 2);
       const waterMat = new THREE.MeshBasicMaterial({ color: 0x2980b9, transparent: true, opacity: 0.7 });
@@ -165,10 +202,7 @@
       water.position.y = -0.5;
       scene.add(water);
 
-      // کمپ استراحت
       createCamp(30, 0, 30);
-      
-      // مرکز خرید و فروش
       createShopArea(-40, 0, -40);
     }
 
@@ -194,7 +228,6 @@
       scene.add(shop);
     }
 
-    // اسپان حیوانات مختلف
     function spawnAnimals() {
       const keys = Object.keys(animalTypes);
       for(let i=0; i<30; i++) {
@@ -226,16 +259,112 @@
       }
     }
 
-    // حلقه بازی و رفتار حیوانات
+    // راه اندازی سیستم لمسی (جوئی استیک و چرخش دید)
+    function setupTouchControls() {
+      const joystickZone = document.getElementById('joystick-zone');
+      const joystickKnob = document.getElementById('joystick-knob');
+
+      // کنترل جوی‌استیک حرکتی
+      joystickZone.addEventListener('touchstart', (e) => handleJoystick(e), false);
+      joystickZone.addEventListener('touchmove', (e) => handleJoystick(e), false);
+      joystickZone.addEventListener('touchend', () => {
+        moveForward = 0;
+        moveSide = 0;
+        joystickKnob.style.top = '35px';
+        joystickKnob.style.left = '35px';
+      }, false);
+
+      function handleJoystick(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = joystickZone.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        let deltaX = touch.clientX - centerX;
+        let deltaY = touch.clientY - centerY;
+        let dist = Math.hypot(deltaX, deltaY);
+        let maxDist = 45;
+
+        if (dist > maxDist) {
+          deltaX = (deltaX / dist) * maxDist;
+          deltaY = (deltaY / dist) * maxDist;
+        }
+
+        joystickKnob.style.left = (35 + deltaX) + 'px';
+        joystickKnob.style.top = (35 + deltaY) + 'px';
+
+        moveSide = deltaX / maxDist;
+        moveForward = -deltaY / maxDist;
+      }
+
+      // چرخش نگاه و دید با کشیدن انگشت سمت راست صفحه
+      window.addEventListener('touchstart', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          let touch = e.changedTouches[i];
+          // اگر لمس در سمت راست صفحه باشد
+          if (touch.clientX < window.innerWidth / 2 && touchLookId === null) {
+            touchLookId = touch.identifier;
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+          }
+        }
+      }, false);
+
+      window.addEventListener('touchmove', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          let touch = e.changedTouches[i];
+          if (touch.identifier === touchLookId) {
+            let deltaX = touch.clientX - lastTouchX;
+            let deltaY = touch.clientY - lastTouchY;
+
+            yaw -= deltaX * 0.005;
+            pitch -= deltaY * 0.005;
+            pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
+
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+          }
+        }
+      }, false);
+
+      window.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchLookId) {
+            touchLookId = null;
+          }
+        }
+      }, false);
+    }
+
+    function updatePlayerMovement() {
+      // به‌روزرسانی زوایای دید دوربین
+      const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+      euler.x = pitch;
+      euler.y = yaw;
+      camera.quaternion.setFromEuler(euler);
+
+      // محاسبه جهت حرکت بر اساس نگاه دوربین
+      const speed = 0.15;
+      if (moveForward !== 0 || moveSide !== 0) {
+        const moveDir = new THREE.Vector3(moveSide, 0, -moveForward).normalize();
+        moveDir.applyQuaternion(camera.quaternion);
+        moveDir.y = 0; // عدم پرواز در آسمان
+        camera.position.addScaledVector(moveDir, speed);
+      }
+    }
+
     function animate() {
       requestAnimationFrame(animate);
 
+      updatePlayerMovement();
+
+      // هوش مصنوعی و انیمیشن حیوانات
       animals.forEach(animal => {
         if (animal.userData.isDead) return;
 
         let distToPlayer = animal.position.distanceTo(camera.position);
 
-        // حمله حیوانات گوشت‌خوار به شکارچی
         if (animalTypes[animal.userData.type].aggressive && distToPlayer < 18) {
           animal.lookAt(camera.position.x, animal.position.y, camera.position.z);
           animal.translateZ(animalTypes[animal.userData.type].speed);
@@ -244,13 +373,12 @@
             damagePlayer(5);
           }
         } else {
-          // حرکت حیوانات به سمت لب آب
           animal.userData.stateTimer += 0.01;
           if (animal.userData.stateTimer > 15) {
             animal.lookAt(0, animal.position.y, animal.position.z);
             animal.translateZ(0.02);
             if (Math.abs(animal.position.x) < 16) {
-              animal.rotation.x = 0.3; // انیمیشن آب خوردن
+              animal.rotation.x = 0.3;
               setTimeout(() => { animal.rotation.x = 0; }, 3000);
               animal.userData.stateTimer = 0;
             }
@@ -258,14 +386,12 @@
         }
       });
 
-      // بررسی موقعیت کمپ
+      // بررسی کمپ و بازار
       if (camera.position.distanceTo(new THREE.Vector3(30, 0, 30)) < 4) {
         document.getElementById('btn-action').style.display = 'flex';
         document.getElementById('btn-action').innerText = 'استراحت';
         document.getElementById('btn-action').onclick = restAtCamp;
-      } 
-      // بررسی موقعیت بازار
-      else if (camera.position.distanceTo(new THREE.Vector3(-40, 0, -40)) < 6) {
+      } else if (camera.position.distanceTo(new THREE.Vector3(-40, 0, -40)) < 6) {
         document.getElementById('btn-action').style.display = 'flex';
         document.getElementById('btn-action').innerText = 'بازار';
         document.getElementById('btn-action').onclick = openShop;
@@ -276,8 +402,11 @@
       renderer.render(scene, camera);
     }
 
-    // تیراندازی
     function shoot() {
+      // انیمیشن لگد زدن تفنگ
+      gunGroup.position.z = -0.3;
+      setTimeout(() => { gunGroup.position.z = -0.5; }, 100);
+
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
@@ -291,7 +420,7 @@
 
           if (obj.userData.hp <= 0) {
             obj.userData.isDead = true;
-            obj.rotation.z = Math.PI / 2; // افتادن روی زمین
+            obj.rotation.z = Math.PI / 2;
             obj.position.y = 0.3;
             
             setTimeout(() => { collectMeat(obj); }, 800);
@@ -323,7 +452,7 @@
         document.getElementById('coin-count').innerText = coins;
         alert("شما کشته شدید! ۵۰ سکه کسر شد و گوشت‌ها از دست رفت.");
         
-        camera.position.set(0, 2, 0);
+        camera.position.set(0, 1.8, 0);
         playerHealth = 100;
         document.getElementById('health-bar-fill').style.width = '100%';
       }
@@ -365,6 +494,7 @@
       document.getElementById('btn-scope').onclick = () => {
         isScoped = !isScoped;
         document.getElementById('sniper-scope').style.display = isScoped ? 'block' : 'none';
+        gunGroup.visible = !isScoped;
         camera.fov = isScoped ? 15 : 60;
         camera.updateProjectionMatrix();
       };
