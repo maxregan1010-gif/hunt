@@ -3,10 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <!-- تنظیمات تمام‌صفحه و حالت وب‌اپلیکیشن برای موبایل -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>شکارگاه701</title>
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; touch-action: none; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Tahoma, sans-serif; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; background: #000;
+      font-family: Tahoma, sans-serif; position: fixed; touch-action: none;
+    }
     #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
     
     /* رابط کاربری (HUD) */
@@ -39,7 +46,7 @@
       background: rgba(255, 255, 255, 0.6); border-radius: 50%; pointer-events: none;
     }
 
-    /* کلیدهای اکشن سمت چپ */
+    /* کلیدهای لمسی اکشن */
     .touch-btn {
       position: absolute; background: rgba(255,255,255,0.25); border: 2px solid #fff;
       border-radius: 50%; color: #fff; display: flex; justify-content: center; align-items: center;
@@ -50,7 +57,7 @@
     #btn-weapon { bottom: 45px; left: 120px; width: 55px; height: 55px; }
     #btn-action { bottom: 190px; left: 35px; width: 65px; height: 65px; background: rgba(46,204,113,0.8); display: none; }
 
-    /* بازار */
+    /* پنجره بازار */
     #shop-modal {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: rgba(20,20,20,0.95); color: #fff; padding: 20px; border-radius: 12px;
@@ -106,9 +113,9 @@
     let isScoped = false;
     let gunGroup;
 
-    // متغیرهای چرخش و حرکت لمسی
+    // متغیرهای حرکت و نگاه لمسی
     let moveForward = 0, moveSide = 0;
-    let yaw = 0, pitch = 0; // زوایای چرخش دوربین
+    let yaw = 0, pitch = 0;
     let touchLookId = null;
     let lastTouchX = 0, lastTouchY = 0;
 
@@ -153,17 +160,15 @@
       animate();
     }
 
-    // ساخت مدل تفنگ سه بعدی متصل به دوربین
+    // ساخت مدل تفنگ سه‌بعدی
     function createWeapon() {
       gunGroup = new THREE.Group();
 
-      // لوله تفنگ
       const barrelGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 16);
       barrelGeo.rotateX(Math.PI / 2);
       const gunMat = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
       const barrel = new THREE.Mesh(barrelGeo, gunMat);
 
-      // دسته تفنگ
       const handleGeo = new THREE.BoxGeometry(0.06, 0.2, 0.08);
       const handleMat = new THREE.MeshLambertMaterial({ color: 0x8e44ad });
       const handle = new THREE.Mesh(handleGeo, handleMat);
@@ -172,7 +177,6 @@
       gunGroup.add(barrel);
       gunGroup.add(handle);
 
-      // موقعیت دادن به تفنگ جلوی دوربین
       gunGroup.position.set(0.25, -0.2, -0.5);
       camera.add(gunGroup);
       scene.add(camera);
@@ -264,7 +268,6 @@
       const joystickZone = document.getElementById('joystick-zone');
       const joystickKnob = document.getElementById('joystick-knob');
 
-      // کنترل جوی‌استیک حرکتی
       joystickZone.addEventListener('touchstart', (e) => handleJoystick(e), false);
       joystickZone.addEventListener('touchmove', (e) => handleJoystick(e), false);
       joystickZone.addEventListener('touchend', () => {
@@ -298,11 +301,10 @@
         moveForward = -deltaY / maxDist;
       }
 
-      // چرخش نگاه و دید با کشیدن انگشت سمت راست صفحه
+      // چرخش نگاه و دید
       window.addEventListener('touchstart', (e) => {
         for (let i = 0; i < e.changedTouches.length; i++) {
           let touch = e.changedTouches[i];
-          // اگر لمس در سمت راست صفحه باشد
           if (touch.clientX < window.innerWidth / 2 && touchLookId === null) {
             touchLookId = touch.identifier;
             lastTouchX = touch.clientX;
@@ -337,19 +339,35 @@
       }, false);
     }
 
+    // تابع فعال‌سازی تمام‌صفحه و افقی کردن صفحه
+    function enableFullScreen() {
+      const doc = document.documentElement;
+      if (doc.requestFullscreen) {
+        doc.requestFullscreen();
+      } else if (doc.mozRequestFullScreen) {
+        doc.mozRequestFullScreen();
+      } else if (doc.webkitRequestFullscreen) {
+        doc.webkitRequestFullscreen();
+      } else if (doc.msRequestFullscreen) {
+        doc.msRequestFullscreen();
+      }
+
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    }
+
     function updatePlayerMovement() {
-      // به‌روزرسانی زوایای دید دوربین
       const euler = new THREE.Euler(0, 0, 0, 'YXZ');
       euler.x = pitch;
       euler.y = yaw;
       camera.quaternion.setFromEuler(euler);
 
-      // محاسبه جهت حرکت بر اساس نگاه دوربین
       const speed = 0.15;
       if (moveForward !== 0 || moveSide !== 0) {
         const moveDir = new THREE.Vector3(moveSide, 0, -moveForward).normalize();
         moveDir.applyQuaternion(camera.quaternion);
-        moveDir.y = 0; // عدم پرواز در آسمان
+        moveDir.y = 0;
         camera.position.addScaledVector(moveDir, speed);
       }
     }
@@ -359,7 +377,6 @@
 
       updatePlayerMovement();
 
-      // هوش مصنوعی و انیمیشن حیوانات
       animals.forEach(animal => {
         if (animal.userData.isDead) return;
 
@@ -386,7 +403,6 @@
         }
       });
 
-      // بررسی کمپ و بازار
       if (camera.position.distanceTo(new THREE.Vector3(30, 0, 30)) < 4) {
         document.getElementById('btn-action').style.display = 'flex';
         document.getElementById('btn-action').innerText = 'استراحت';
@@ -403,7 +419,6 @@
     }
 
     function shoot() {
-      // انیمیشن لگد زدن تفنگ
       gunGroup.position.z = -0.3;
       setTimeout(() => { gunGroup.position.z = -0.5; }, 100);
 
@@ -502,6 +517,12 @@
         currentWeapon = currentWeapon === 'pistol' ? 'sniper' : 'pistol';
         alert("سلاح: " + (currentWeapon === 'pistol' ? 'کلت' : 'تک تیرانداز'));
       };
+
+      // فعال‌سازی تمام‌صفحه با اولین لمس
+      window.addEventListener('touchstart', function triggerFullScreen() {
+        enableFullScreen();
+        window.removeEventListener('touchstart', triggerFullScreen);
+      }, { once: true });
 
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
